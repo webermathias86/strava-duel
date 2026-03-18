@@ -40,6 +40,36 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+function countCrowns(players) {
+  const crowns = { [players[0].name]: 0, [players[1].name]: 0 };
+  const p1 = players[0];
+  const p2 = players[1];
+  const allMonths = [...new Set([...p1.monthly.map(d => d.month), ...p2.monthly.map(d => d.month)])].sort();
+  const p1Map = Object.fromEntries(p1.monthly.map(d => [d.month, d.km]));
+  const p2Map = Object.fromEntries(p2.monthly.map(d => [d.month, d.km]));
+  const now = new Date();
+  allMonths.forEach(month => {
+    const [y, m] = month.split("-").map(Number);
+    const isComplete = now.getFullYear() > y || (now.getFullYear() === y && now.getMonth() + 1 > m);
+    if (!isComplete) return;
+    const p1km = p1Map[month] ?? 0;
+    const p2km = p2Map[month] ?? 0;
+    if (p1km > p2km) crowns[p1.name]++;
+    else if (p2km > p1km) crowns[p2.name]++;
+  });
+  return crowns;
+}
+
+function CrownRow({ count }) {
+  if (count === 0) return <span style={{ color: "#555", fontSize: 12 }}>noch keine Krone</span>;
+  return (
+    <span style={{ fontSize: 15, letterSpacing: 2 }}>
+      {"👑".repeat(Math.min(count, 8))}
+      {count > 8 ? <span style={{ color: "#888", fontSize: 12 }}> +{count - 8}</span> : null}
+    </span>
+  );
+}
+
 function LeaderboardCard({ players }) {
   const sorted = [...players].sort((a, b) => b.totalKm - a.totalKm);
   const leader = sorted[0];
@@ -47,6 +77,7 @@ function LeaderboardCard({ players }) {
   const diff = leader.totalKm - trailer.totalKm;
   const leaderColor = leader.id === players[0].id ? P1_COLOR : P2_COLOR;
   const trailerColor = trailer.id === players[0].id ? P1_COLOR : P2_COLOR;
+  const crowns = countCrowns(players);
 
   return (
     <div style={{ background: "linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%)", border: "1px solid #2a2d3a", borderRadius: 16, padding: 24, marginBottom: 16 }}>
@@ -65,7 +96,9 @@ function LeaderboardCard({ players }) {
           {player.profile && <img src={player.profile} alt="" style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${color}` }} />}
           <div style={{ flex: 1 }}>
             <p style={{ color: "#fff", margin: 0, fontWeight: 700, fontSize: 15 }}>{player.name}</p>
-            <p style={{ color: "#888", margin: 0, fontSize: 12 }}>{role}</p>
+            <div style={{ marginTop: 3 }}>
+              <CrownRow count={crowns[player.name]} />
+            </div>
           </div>
           <p style={{ color, margin: 0, fontWeight: 800, fontSize: 24, fontFamily: "monospace" }}>
             {player.totalKm.toFixed(0)}<span style={{ fontSize: 13, fontWeight: 400 }}> km</span>
