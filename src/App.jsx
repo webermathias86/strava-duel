@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
 const P1_COLOR = "#FF6B35";
 const P2_COLOR = "#4ECDC4";
 const GOAL_KM = 4000;
+const CURRENT_YEAR = new Date().getFullYear();
 
 function formatKm(km) {
   return km >= 1000 ? `${(km / 1000).toFixed(1)}K` : `${Math.round(km)}`;
@@ -17,13 +18,12 @@ function getMonthName(monthStr) {
   return ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"][m - 1];
 }
 
-function getPaceKmForDate(dateStr) {
+function getPaceKmForDate(dateStr, year) {
   const date = new Date(dateStr);
-  const year = date.getFullYear();
   const start = new Date(`${year}-01-01`);
   const end = new Date(`${year}-12-31`);
   const elapsed = (date - start) / (end - start);
-  return parseFloat((elapsed * GOAL_KM).toFixed(2));
+  return parseFloat((Math.max(0, Math.min(1, elapsed)) * GOAL_KM).toFixed(2));
 }
 
 function CustomTooltip({ active, payload, label }) {
@@ -82,7 +82,7 @@ function LeaderboardCard({ players }) {
   return (
     <div style={{ background: "linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%)", border: "1px solid #2a2d3a", borderRadius: 16, padding: 24, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ color: "#fff", fontSize: 18, margin: 0 }}>🏆 Leaderboard {new Date().getFullYear()}</h2>
+        <h2 style={{ color: "#fff", fontSize: 18, margin: 0 }}>🏆 Leaderboard</h2>
         <span style={{ color: "#888", fontSize: 13 }}>Live</span>
       </div>
       {[{ player: leader, emoji: "🥇", color: leaderColor, role: "Führend" }, { player: trailer, emoji: "🥈", color: trailerColor, role: "Verfolger" }].map(({ player, emoji, color, role }) => (
@@ -96,9 +96,7 @@ function LeaderboardCard({ players }) {
           {player.profile && <img src={player.profile} alt="" style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${color}` }} />}
           <div style={{ flex: 1 }}>
             <p style={{ color: "#fff", margin: 0, fontWeight: 700, fontSize: 15 }}>{player.name}</p>
-            <div style={{ marginTop: 3 }}>
-              <CrownRow count={crowns[player.name]} />
-            </div>
+            <div style={{ marginTop: 3 }}><CrownRow count={crowns[player.name]} /></div>
           </div>
           <p style={{ color, margin: 0, fontWeight: 800, fontSize: 24, fontFamily: "monospace" }}>
             {player.totalKm.toFixed(0)}<span style={{ fontSize: 13, fontWeight: 400 }}> km</span>
@@ -115,32 +113,34 @@ function LeaderboardCard({ players }) {
   );
 }
 
-function GoalCard({ players }) {
+function GoalCard({ players, year }) {
+  const isCurrentYear = year === CURRENT_YEAR;
   const today = new Date().toISOString().split("T")[0];
-  const paceNow = getPaceKmForDate(today);
-  const year = new Date().getFullYear();
+  const refDate = isCurrentYear ? today : `${year}-12-31`;
+  const paceNow = getPaceKmForDate(refDate, year);
   const start = new Date(`${year}-01-01`);
   const end = new Date(`${year}-12-31`);
-  const progressPct = ((new Date() - start) / (end - start)) * 100;
+  const progressPct = isCurrentYear
+    ? ((new Date() - start) / (end - start)) * 100
+    : 100;
 
   return (
     <div style={{ background: "linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%)", border: "1px solid #2a2d3a", borderRadius: 16, padding: 24, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2 style={{ color: "#fff", fontSize: 18, margin: 0 }}>🎯 Jahresziel {GOAL_KM.toLocaleString()} km</h2>
-        <span style={{ color: "#888", fontSize: 13 }}>Pace: {Math.round(paceNow)} km</span>
+        <span style={{ color: "#888", fontSize: 13 }}>{isCurrentYear ? `Pace: ${Math.round(paceNow)} km` : `${year}`}</span>
       </div>
-
-      {/* Year progress bar */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ color: "#666", fontSize: 12 }}>Jahresfortschritt</span>
-          <span style={{ color: "#666", fontSize: 12 }}>{progressPct.toFixed(1)}% des Jahres</span>
+      {isCurrentYear && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: "#666", fontSize: 12 }}>Jahresfortschritt</span>
+            <span style={{ color: "#666", fontSize: 12 }}>{progressPct.toFixed(1)}% des Jahres</span>
+          </div>
+          <div style={{ height: 6, background: "#1e2235", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progressPct}%`, background: "linear-gradient(90deg, #444, #666)", borderRadius: 3 }} />
+          </div>
         </div>
-        <div style={{ height: 6, background: "#1e2235", borderRadius: 3, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${progressPct}%`, background: "linear-gradient(90deg, #444, #666)", borderRadius: 3 }} />
-        </div>
-      </div>
-
+      )}
       {players.map((player, pi) => {
         const color = pi === 0 ? P1_COLOR : P2_COLOR;
         const diff = player.totalKm - paceNow;
@@ -155,28 +155,86 @@ function GoalCard({ players }) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <span style={{ color, fontSize: 13, fontWeight: 700 }}>{player.totalKm.toFixed(0)} km</span>
-                <span style={{ fontSize: 12, marginLeft: 8, color: isAhead ? "#4ECDC4" : "#ff6b6b", fontWeight: 600 }}>
-                  {isAhead ? "+" : ""}{diff.toFixed(0)} km vs. Pace
-                </span>
+                {isCurrentYear && (
+                  <span style={{ fontSize: 12, marginLeft: 8, color: isAhead ? "#4ECDC4" : "#ff6b6b", fontWeight: 600 }}>
+                    {isAhead ? "+" : ""}{diff.toFixed(0)} km vs. Pace
+                  </span>
+                )}
               </div>
             </div>
-            {/* Progress bar with pace marker */}
-            <div style={{ position: "relative", height: 10, background: "#1e2235", borderRadius: 5, overflow: "visible" }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: 5, transition: "width 0.3s" }} />
-              {/* Pace marker */}
-              <div style={{
-                position: "absolute", top: -3, left: `${progressPct}%`,
-                width: 2, height: 16, background: "#fff", borderRadius: 1,
-                transform: "translateX(-50%)",
-              }} />
+            <div style={{ position: "relative", height: 10, background: "#1e2235", borderRadius: 5 }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: 5 }} />
+              {isCurrentYear && (
+                <div style={{ position: "absolute", top: -3, left: `${progressPct}%`, width: 2, height: 16, background: "#fff", borderRadius: 1, transform: "translateX(-50%)" }} />
+              )}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
               <span style={{ color: "#555", fontSize: 11 }}>{pct.toFixed(1)}% des Ziels</span>
-              <span style={{ color: "#555", fontSize: 11 }}>noch {(GOAL_KM - player.totalKm).toFixed(0)} km</span>
+              <span style={{ color: "#555", fontSize: 11 }}>noch {Math.max(0, GOAL_KM - player.totalKm).toFixed(0)} km</span>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function WeekCard({ players }) {
+  const now = new Date();
+  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - dayOfWeek);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekStartStr = weekStart.toISOString().split("T")[0];
+
+  const weekKm = players.map(player => {
+    const km = player.activities
+      .filter(a => a.date >= weekStartStr)
+      .reduce((s, a) => s + a.km, 0);
+    return { ...player, weekKm: parseFloat(km.toFixed(1)) };
+  });
+
+  const sorted = [...weekKm].sort((a, b) => b.weekKm - a.weekKm);
+  const hasRides = sorted.some(p => p.weekKm > 0);
+
+  return (
+    <div style={{ background: "linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%)", border: "1px solid #2a2d3a", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h2 style={{ color: "#fff", fontSize: 16, margin: 0 }}>⚡ Diese Woche</h2>
+        <span style={{ color: "#666", fontSize: 12 }}>Mo – heute</span>
+      </div>
+      {!hasRides ? (
+        <p style={{ color: "#555", fontSize: 13, margin: 0, textAlign: "center", padding: "8px 0" }}>Noch keine Rides diese Woche 🛋️</p>
+      ) : (
+        <>
+          {sorted.map((player, pi) => {
+            const color = player.id === players[0].id ? P1_COLOR : P2_COLOR;
+            const maxKm = Math.max(...weekKm.map(p => p.weekKm), 1);
+            const barPct = (player.weekKm / maxKm) * 100;
+            const isLeader = pi === 0;
+            return (
+              <div key={player.id} style={{ marginBottom: pi === 0 ? 12 : 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {isLeader && <span style={{ fontSize: 14 }}>🔥</span>}
+                    {player.profile && <img src={player.profile} alt="" style={{ width: 24, height: 24, borderRadius: "50%", border: `1.5px solid ${color}` }} />}
+                    <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>{player.name}</span>
+                  </div>
+                  <span style={{ color, fontSize: 14, fontWeight: 800, fontFamily: "monospace" }}>{player.weekKm} km</span>
+                </div>
+                <div style={{ height: 6, background: "#1e2235", borderRadius: 3 }}>
+                  <div style={{ height: "100%", width: `${barPct}%`, background: color, borderRadius: 3, opacity: isLeader ? 1 : 0.5 }} />
+                </div>
+              </div>
+            );
+          })}
+          {sorted[0].weekKm > sorted[1].weekKm && (
+            <p style={{ color: "#666", fontSize: 12, margin: "10px 0 0", textAlign: "center" }}>
+              <strong style={{ color: sorted[0].id === players[0].id ? P1_COLOR : P2_COLOR }}>{sorted[0].name}</strong> führt diese Woche um {(sorted[0].weekKm - sorted[1].weekKm).toFixed(1)} km
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -187,7 +245,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState("cumulative");
-  const year = new Date().getFullYear();
+  const [year, setYear] = useState(CURRENT_YEAR);
 
   const params = new URLSearchParams(window.location.search);
   const justConnected = params.get("connected");
@@ -198,6 +256,10 @@ export default function App() {
     if (justConnected || connectError) window.history.replaceState({}, "", "/");
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (status?.ready) loadData();
+  }, [year]);
 
   async function loadData() {
     setLoading(true);
@@ -238,7 +300,7 @@ export default function App() {
       fullDate: date,
       [p1.name]: p1Map[date] ?? null,
       [p2.name]: p2Map[date] ?? null,
-      "Ziel-Pace": getPaceKmForDate(date),
+      "Ziel-Pace": getPaceKmForDate(date, year),
     }));
   }
 
@@ -252,34 +314,22 @@ export default function App() {
     return allMonths.map((month) => {
       const p1km = p1Map[month] ?? 0;
       const p2km = p2Map[month] ?? 0;
-      // only award crown for completed months
       const now = new Date();
       const [y, m] = month.split("-").map(Number);
       const isComplete = now.getFullYear() > y || (now.getFullYear() === y && now.getMonth() + 1 > m);
       const winner = isComplete ? (p1km > p2km ? p1.name : p2km > p1km ? p2.name : null) : null;
-      return {
-        month: getMonthName(month),
-        [p1.name]: p1km,
-        [p2.name]: p2km,
-        winner,
-        p1Name: p1.name,
-        p2Name: p2.name,
-      };
+      return { month: getMonthName(month), [p1.name]: p1km, [p2.name]: p2km, winner, p1Name: p1.name, p2Name: p2.name };
     });
   }
 
-  // Custom bar label for monthly winner crown
   function MonthWinnerLabel(props) {
     const { x, width, value, index, monthData, playerName } = props;
     if (!monthData || !monthData[index]) return null;
     const row = monthData[index];
     if (row.winner !== playerName) return null;
     const otherKm = playerName === row.p1Name ? row[row.p2Name] : row[row.p1Name];
-    const topY = props.y - 8;
     if (value < otherKm) return null;
-    return (
-      <text x={x + width / 2} y={topY} textAnchor="middle" fontSize={14}>👑</text>
-    );
+    return <text x={x + width / 2} y={props.y - 8} textAnchor="middle" fontSize={14}>👑</text>;
   }
 
   const s = {
@@ -291,6 +341,7 @@ export default function App() {
   };
 
   const monthlyData = data ? getMergedMonthly() : [];
+  const availableYears = Array.from({ length: CURRENT_YEAR - 2023 }, (_, i) => 2024 + i);
 
   return (
     <div style={s.app}>
@@ -298,10 +349,30 @@ export default function App() {
 
       <div style={{ padding: "20px 20px 0", background: "linear-gradient(180deg, #0f1117 0%, transparent 100%)" }}>
         <div style={{ ...s.container, paddingTop: 20 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 4px", background: `linear-gradient(90deg, ${P1_COLOR}, ${P2_COLOR})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            🚴 Duel
-          </h1>
-          <p style={{ color: "#888", fontSize: 13 }}>Jahreswettbewerb {year}</p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 4px", background: `linear-gradient(90deg, ${P1_COLOR}, ${P2_COLOR})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                🚴 Duel
+              </h1>
+              <p style={{ color: "#888", fontSize: 13, margin: 0 }}>Jahreswettbewerb</p>
+            </div>
+            {/* Year switcher */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <button
+                onClick={() => setYear(y => Math.max(2024, y - 1))}
+                disabled={year <= 2024}
+                style={{ background: "none", border: "1px solid #2a2d3a", color: year <= 2024 ? "#333" : "#888", borderRadius: 8, width: 28, height: 28, cursor: year <= 2024 ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ‹
+              </button>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 16, minWidth: 40, textAlign: "center" }}>{year}</span>
+              <button
+                onClick={() => setYear(y => Math.min(CURRENT_YEAR, y + 1))}
+                disabled={year >= CURRENT_YEAR}
+                style={{ background: "none", border: "1px solid #2a2d3a", color: year >= CURRENT_YEAR ? "#333" : "#888", borderRadius: 8, width: 28, height: 28, cursor: year >= CURRENT_YEAR ? "default" : "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ›
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -313,7 +384,7 @@ export default function App() {
         )}
         {connectError && (
           <div style={{ ...s.card, borderColor: "#ff4444", background: "#ff444410", marginTop: 20 }}>
-            <p style={{ margin: 0, color: "#ff6666" }}>❌ Fehler beim Verbinden. Bitte nochmal versuchen.</p>
+            <p style={{ margin: 0, color: "#ff6666" }}>❌ Fehler beim Verbinden.</p>
           </div>
         )}
         {error && (
@@ -352,7 +423,8 @@ export default function App() {
           <>
             <div style={{ marginTop: 24 }}>
               <LeaderboardCard players={data.players} />
-              <GoalCard players={data.players} />
+              {year === CURRENT_YEAR && <WeekCard players={data.players} />}
+              <GoalCard players={data.players} year={year} />
             </div>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -363,9 +435,7 @@ export default function App() {
             {tab === "cumulative" && (
               <div style={s.card}>
                 <p style={s.cardTitle}>Kumulative km – {year}</p>
-                <p style={{ color: "#666", fontSize: 12, marginBottom: 16, marginTop: -8 }}>
-                  Gestrichelt = Pace für {GOAL_KM.toLocaleString()} km Ziel
-                </p>
+                <p style={{ color: "#666", fontSize: 12, marginBottom: 16, marginTop: -8 }}>Gestrichelt = Pace für {GOAL_KM.toLocaleString()} km</p>
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={getMergedCumulative()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e2235" />
