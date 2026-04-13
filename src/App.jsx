@@ -187,8 +187,8 @@ function WeekCard({ players }) {
   const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - dayOfWeek);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekStartStr = weekStart.toISOString().split("T")[0];
+  // Use local date (not UTC) to avoid timezone shift
+  const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
 
   const weekKm = players.map(player => {
     const km = player.activities
