@@ -370,7 +370,7 @@ export default function App() {
                   <LineChart data={getMergedCumulative()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e2235" />
                     <XAxis dataKey="date" tick={{ fill: "#666", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "#666", fontSize: 11 }} width={42} tickFormatter={formatKm} domain={[0, GOAL_KM]} />
+                    <YAxis tick={{ fill: "#666", fontSize: 11 }} width={42} tickFormatter={formatKm} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 12, color: "#888" }} />
                     <Line type="monotone" dataKey="Ziel-Pace" stroke="#555" strokeWidth={1.5} dot={false} strokeDasharray="5 3" connectNulls />
