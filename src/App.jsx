@@ -181,7 +181,7 @@ function GoalCard({ players, year }) {
 
 function WeekCard({ players }) {
   const now = new Date();
-  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
+  const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - dayOfWeek);
   weekStart.setHours(0, 0, 0, 0);
