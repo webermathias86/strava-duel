@@ -28,9 +28,12 @@ function getPaceKmForDate(dateStr, year) {
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  const displayDate = payload[0]?.payload?.fullDate
+    ? payload[0].payload.fullDate.substring(5)
+    : label;
   return (
     <div style={{ background: "#0f1117", border: "1px solid #2a2d3a", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>
-      <p style={{ color: "#888", marginBottom: 6 }}>{label}</p>
+      <p style={{ color: "#888", marginBottom: 6 }}>{displayDate}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color, margin: "2px 0" }}>
           <strong>{p.name}:</strong> {Number(p.value).toFixed(1)} km
