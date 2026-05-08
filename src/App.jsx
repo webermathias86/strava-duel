@@ -108,11 +108,16 @@ function LeaderboardCard({ players, prevPlayers }) {
             {(() => {
               const prev = prevPlayers?.find(p => p.id === player.id);
               if (!prev) return null;
-              const diff = player.totalKm - prev.totalKm;
+              // Compare same calendar day (MM-DD) in previous year
+              const todayMMDD = new Date().toISOString().split("T")[0].substring(5);
+              const prevAtSameDay = prev.cumulative.findLast?.(d => d.date.substring(5) <= todayMMDD)
+                ?? [...prev.cumulative].filter(d => d.date.substring(5) <= todayMMDD).pop();
+              if (!prevAtSameDay) return null;
+              const diff = player.totalKm - prevAtSameDay.km;
               const isAhead = diff >= 0;
               return (
                 <p style={{ margin: 0, fontSize: 11, color: isAhead ? "#4ECDC4" : "#ff6b6b", fontWeight: 600 }}>
-                  {isAhead ? "▲" : "▼"} {Math.abs(diff).toFixed(0)} km vs. {prev.year || "Vorjahr"}
+                  {isAhead ? "▲" : "▼"} {Math.abs(diff).toFixed(0)} km vs. Vorjahr (selber Tag)
                 </p>
               );
             })()}
@@ -530,7 +535,10 @@ export default function App() {
                       [`${year}`]: currentMap[key] ?? null,
                       [`${year - 1}`]: prevMap[key] ?? null,
                     }));
-                    const diff = player.totalKm - prev.totalKm;
+                    const todayMMDD = new Date().toISOString().split("T")[0].substring(5);
+                    const prevAtSameDay = [...prev.cumulative].filter(d => d.date.substring(5) <= todayMMDD).pop();
+                    const prevKmAtSameDay = prevAtSameDay?.km ?? prev.totalKm;
+                    const diff = player.totalKm - prevKmAtSameDay;
                     const isAhead = diff >= 0;
                     return (
                       <div key={player.id} style={{ marginBottom: pi === 0 ? 24 : 0 }}>
