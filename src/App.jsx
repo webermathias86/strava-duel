@@ -73,7 +73,7 @@ function CrownRow({ count }) {
   );
 }
 
-function LeaderboardCard({ players }) {
+function LeaderboardCard({ players, prevPlayers }) {
   const sorted = [...players].sort((a, b) => b.totalKm - a.totalKm);
   const leader = sorted[0];
   const trailer = sorted[1];
@@ -101,9 +101,22 @@ function LeaderboardCard({ players }) {
             <p style={{ color: "#fff", margin: 0, fontWeight: 700, fontSize: 15 }}>{player.name}</p>
             <div style={{ marginTop: 3 }}><CrownRow count={crowns[player.name]} /></div>
           </div>
-          <p style={{ color, margin: 0, fontWeight: 800, fontSize: 24, fontFamily: "monospace" }}>
-            {player.totalKm.toFixed(0)}<span style={{ fontSize: 13, fontWeight: 400 }}> km</span>
-          </p>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ color, margin: 0, fontWeight: 800, fontSize: 24, fontFamily: "monospace" }}>
+              {player.totalKm.toFixed(0)}<span style={{ fontSize: 13, fontWeight: 400 }}> km</span>
+            </p>
+            {(() => {
+              const prev = prevPlayers?.find(p => p.id === player.id);
+              if (!prev) return null;
+              const diff = player.totalKm - prev.totalKm;
+              const isAhead = diff >= 0;
+              return (
+                <p style={{ margin: 0, fontSize: 11, color: isAhead ? "#4ECDC4" : "#ff6b6b", fontWeight: 600 }}>
+                  {isAhead ? "▲" : "▼"} {Math.abs(diff).toFixed(0)} km vs. {prev.year || "Vorjahr"}
+                </p>
+              );
+            })()}
+          </div>
         </div>
       ))}
       <div style={{ textAlign: "center", padding: 10, background: "#ffffff05", borderRadius: 8 }}>
@@ -242,8 +255,23 @@ function WeekCard({ players }) {
   );
 }
 
+function getPrevYearCumulative(currentPlayers, prevPlayers, year) {
+  if (!prevPlayers) return [];
+  return currentPlayers.map((player, pi) => {
+    const prev = prevPlayers.find(p => p.id === player.id);
+    if (!prev) return null;
+    const color = pi === 0 ? P1_COLOR : P2_COLOR;
+    // Align prev year dates to current year for overlay
+    const currentMap = Object.fromEntries(player.cumulative.map(d => [d.date.substring(5), d.km]));
+    const prevMap = Object.fromEntries(prev.cumulative.map(d => [d.date.substring(5), d.km]));
+    const allKeys = [...new Set([...Object.keys(currentMap), ...Object.keys(prevMap)])].sort();
+    return { player, prev, color, allKeys, currentMap, prevMap };
+  }).filter(Boolean);
+}
+
 export default function App() {
   const [data, setData] = useState(null);
+  const [prevData, setPrevData] = useState(null);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -268,14 +296,18 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [statusRes, actRes] = await Promise.all([
+      const [statusRes, actRes, prevActRes] = await Promise.all([
         fetch("/api/status"),
         fetch(`/api/activities?year=${year}`),
+        fetch(`/api/activities?year=${year - 1}`),
       ]);
       const statusData = await statusRes.json();
       const actData = await actRes.json();
+      const prevActData = await prevActRes.json();
       setStatus(statusData);
       if (actData.status === "ready") setData(actData);
+      if (prevActData.status === "ready") setPrevData(prevActData);
+      else setPrevData(null);
     } catch (e) {
       setError(e.message);
     }
@@ -425,7 +457,7 @@ export default function App() {
         ) : data ? (
           <>
             <div style={{ marginTop: 24 }}>
-              <LeaderboardCard players={data.players} />
+              <LeaderboardCard players={data.players} prevPlayers={prevData?.players} />
               {year === CURRENT_YEAR && <WeekCard players={data.players} />}
               <GoalCard players={data.players} year={year} />
             </div>
@@ -433,6 +465,7 @@ export default function App() {
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <button style={s.tab(tab === "cumulative")} onClick={() => setTab("cumulative")}>📈 Verlauf</button>
               <button style={s.tab(tab === "monthly")} onClick={() => setTab("monthly")}>📊 Monate</button>
+              <button style={s.tab(tab === "prevyear")} onClick={() => setTab("prevyear")}>🔄 Vorjahr</button>
             </div>
 
             {tab === "cumulative" && (
@@ -471,6 +504,60 @@ export default function App() {
                       label={<MonthWinnerLabel monthData={monthlyData} playerName={data.players[1].name} />} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+
+            {tab === "prevyear" && (
+              <div style={s.card}>
+                <p style={s.cardTitle}>Ich vs. Vorjahr – {year} vs. {year - 1}</p>
+                <p style={{ color: "#666", fontSize: 12, marginBottom: 16, marginTop: -8 }}>
+                  Durchgezogen = {year}, gestrichelt = {year - 1}
+                </p>
+                {!prevData ? (
+                  <p style={{ color: "#555", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+                    Keine Vorjahresdaten verfügbar
+                  </p>
+                ) : (
+                  data.players.map((player, pi) => {
+                    const color = pi === 0 ? P1_COLOR : P2_COLOR;
+                    const prev = prevData.players.find(p => p.id === player.id);
+                    if (!prev) return null;
+                    const currentMap = Object.fromEntries(player.cumulative.map(d => [d.date.substring(5), d.km]));
+                    const prevMap = Object.fromEntries(prev.cumulative.map(d => [d.date.substring(5), d.km]));
+                    const allKeys = [...new Set([...Object.keys(currentMap), ...Object.keys(prevMap)])].sort();
+                    const chartData = allKeys.map((key, i) => ({
+                      date: i % 14 === 0 ? key : "",
+                      [`${year}`]: currentMap[key] ?? null,
+                      [`${year - 1}`]: prevMap[key] ?? null,
+                    }));
+                    const diff = player.totalKm - prev.totalKm;
+                    const isAhead = diff >= 0;
+                    return (
+                      <div key={player.id} style={{ marginBottom: pi === 0 ? 24 : 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {player.profile && <img src={player.profile} alt="" style={{ width: 28, height: 28, borderRadius: "50%", border: `2px solid ${color}` }} />}
+                            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{player.name}</span>
+                          </div>
+                          <span style={{ fontSize: 12, color: isAhead ? "#4ECDC4" : "#ff6b6b", fontWeight: 700 }}>
+                            {isAhead ? "▲" : "▼"} {Math.abs(diff).toFixed(0)} km vs. Vorjahr
+                          </span>
+                        </div>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <LineChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2235" />
+                            <XAxis dataKey="date" tick={{ fill: "#666", fontSize: 10 }} />
+                            <YAxis tick={{ fill: "#666", fontSize: 10 }} width={38} tickFormatter={formatKm} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend wrapperStyle={{ fontSize: 11, color: "#888" }} />
+                            <Line type="monotone" dataKey={`${year}`} stroke={color} strokeWidth={2.5} dot={false} connectNulls />
+                            <Line type="monotone" dataKey={`${year - 1}`} stroke={color} strokeWidth={1.5} dot={false} strokeDasharray="5 3" connectNulls opacity={0.5} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
 
